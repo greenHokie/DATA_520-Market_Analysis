@@ -1,0 +1,570 @@
+---
+title: "UPS Twitter pulling, and saving, using rtweet"
+author: "Heather Rugnetta"
+date: "Fall 2020"
+
+---
+### Notes from Jake
+Here’s an idea: perhaps consider identifying the top activity users (top 20?) from your initial data pull and then use the “get timeline” function to zero in on their activity over longer historical time frame. Perhaps a network analysis study of influencers? <- still need to do this
+
+# ****** DO NOT RERUN!!!!!!  ***********
+Data will not be the same and will likely crash your computer!
+# ****** DO NOT RERUN!!!!!!  ***********
+```{r}
+library(rtweet)
+library(httpuv)
+library(readr)
+library(tidyverse)
+library(lubridate)
+library(tokenizers)
+library(tidytext)
+library(stringr)
+library(stringi)
+library(wordcloud)
+library(data.table)
+
+```
+
+
+# Collect Twitter Feed
+For purposes of the Fall 2020 project, I am interested in the Twitter feeds of my employer and their major competitors.
+## UPS timelines
+### User: @UPS
+```{r}
+# Extract tweets posted by the user @UPS
+get_UPS <- get_timeline("@UPS", n = 18000)
+
+# View output for the first 5 columns and 10 rows
+head(get_UPS [,1:5], 10)
+```
+
+```{r}
+write_as_csv(get_UPS, "get_UPS")
+```
+
+
+
+### Other UPS handles
+```{r}
+# Extract tweets posted by the "UPS Customer Support"
+get_upshelp <- get_timeline("@UPSHelp", n = 18000)
+```
+
+```{r}
+# Extract tweets posted by the user @UPSers, the UPS employee and fan club 
+get_UPSers <- get_timeline("@UPSers", n = 18000)
+```
+
+```{r} 
+# Extract tweets posted by the UPS News releases (3PM)
+get_upsnews <- get_timeline("@UPS_News", n = 18000)
+```
+
+```{r}
+# Extract tweets posted by The UPS Store (3:01PM)
+get_upsstore <- get_timeline("@TheUPSStore", n = 18000)
+```
+
+```{r}
+get_upsDogs <- get_timeline("@UpsDogs", n=18000)
+```
+```{r}
+temp1 <- rbind(get_upshelp, get_UPSers)
+temp2 <-rbind(get_upsnews, get_upsstore)
+temp3 <- rbind(get_upsDogs, temp1)
+ups_alts <- rbind(temp2, temp3)
+```
+```{r}
+write_as_csv(ups_alts, "ups_alts")
+```
+```{r}
+rm(temp1)
+rm(temp2)
+rm(temp3)
+```
+
+
+
+## Extract tweets posted by other logistics companies
+### DHL
+```{r}
+# ran at 3:22
+get_dhl <- get_timeline("@DHLUS", n = 18000)
+get_dhlhelp <- get_timeline("@DHLUSHelp", n = 18000)
+get_dhlglobal <- get_timeline("@DHLGlobal", n = 18000)
+get_dhlsupplychain <- get_timeline("@DHLsupplychain", n = 18000)
+get_dhlexp <- get_timeline("@DHLexpress", n= 18000)
+get_dhlnews <- get_timeline("@DeutschePostDHL", n = 18000)
+```
+```{r}
+get_dhlemployees <- get_timeline("@DPDHLWorkforce", n = 18000)
+```
+```{r}
+write_as_csv(get_dhl, "get_dhl")
+```
+```{r}
+temp1 <- rbind(get_dhlhelp, get_dhlglobal)
+temp2 <-rbind(get_dhlsupplychain, get_dhlexp)
+temp3 <- rbind(get_dhlnews, get_dhlemployees)
+temp4 <- rbind (temp1, temp2)
+dhl_alts <- rbind (temp3, temp4)
+```
+```{r}
+write_as_csv(dhl_alts, "dhl_alts")
+```
+```{r}
+rm(temp1)
+rm(temp2)
+rm(temp3)
+rm(temp4)
+```
+
+
+### FedEx
+```{r}
+get_fedex <- get_timeline("@FedEx", n = 18000)
+get_fedexhelp <- get_timeline("@FedExHelp", n = 18000)
+get_fedexoffice <- get_timeline("FedExOffice", n =18000)
+```
+```{r}
+write_as_csv(get_fedex, "get_fedex")
+```
+```{r}
+fedex_alts <- rbind(get_fedexhelp, get_fedexoffice)
+```
+```{r}
+write_as_csv(fedex_alts, "fedex_alts")
+```
+
+
+### USPS
+```{r}
+# ran at 1PM
+get_usps <- get_timeline("@USPS", n = 18000)
+get_uspshelp <- get_timeline("@USPShelp", n = 18000)
+get_uspsInsp <- get_timeline("@OIGUSPS", n = 18000)
+get_uspsBiz <- get_timeline("@USPSbiz", n = 18000)
+```
+```{r}
+write_as_csv(get_usps, "get_usps")
+```
+```{r}
+temp1 <- rbind(get_uspshelp, get_uspsInsp)
+usps_alts <- rbind (temp1, get_uspsBiz)
+
+```
+```{r}
+write_as_csv(usps_alts, "usps_alts")
+```
+```{r}
+rm(temp1)
+```
+
+# Phrase search
+
+## Phrases of interest for Logistics
+1:15PM
+```{r}
+# Extract tweets on "package" and include retweets
+twts_pack <- search_tweets("package", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+
+# View output for the first 5 columns and 10 rows
+head(twts_pack[,1:5], 10)
+```
+1:45
+```{r}
+# Extract tweets on "expedite" and include retweets
+twts_expedite <- search_tweets("expedite", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+
+```{r}
+# Extract tweets on "express" and include retweets
+twts_express <- search_tweets("express", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+6:30
+```{r}
+# Extract tweets on "box" and include retweets
+twts_box <- search_tweets("box", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+
+```{r}
+# Extract tweets on "logistics" and include retweets
+twts_logistics <- search_tweets("logistics", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+7:23
+```{r}
+# Extract tweets on "late" and include retweets
+twts_late <- search_tweets("late", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+7:43
+```{r}
+# Extract tweets on "deliver" and include retweets
+twts_deliver <- search_tweets("deliver", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+
+
+
+### Hashtags
+8:12
+```{r}
+# Extract tweets on "#BrownFriday" and include retweets
+twts_BrFri <- search_tweets("#BrownFriday", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+
+# View output for the first 5 columns and 10 rows
+head(twts_BrFri[,1:5], 10)
+```
+
+```{r}
+# Extract tweets on "#WishesDelivered" and include retweets
+twts_Wish <- search_tweets("#WishesDelivered", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+
+
+```
+
+```{r}
+# Extract tweets on "#WhatCanBrownDoForYou" and include retweets
+twts_Brown <- search_tweets("#whatcanbrowndoforyou", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+
+```
+8:45
+```{r}
+# Extract tweets on "UPS" and include retweets
+twts_ups <- search_tweets("UPS", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+
+```
+9:02
+```{r}
+# Extract tweets on "FedEx" and include retweets
+twts_fedex <- search_tweets("FedEx", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+
+```{r}
+# Extract tweets on "DHL" and include retweets
+twts_DHL <- search_tweets("DHL", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+7:25
+```{r}
+# Extract tweets on "mail" and include retweets
+twts_mail <- search_tweets("mail", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+9PM
+```{r}
+# Extract tweets on "postage" and include retweets
+twts_postage <- search_tweets("postage", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+# 
+```{r}
+# Extract tweets on "shipping" and include retweets
+twts_shipping <- search_tweets("shipping", 
+                 n = 18000, 
+                 include_rts = TRUE, 
+                 lang = "en")
+```
+
+
+# Combine the data sets
+```{r}
+## join data
+twt1 <- rbind(twts_BrFri, twts_Wish)
+twt2 <- rbind(twts_pack, twts_Brown)
+twt3 <- rbind(twts_expedite, twts_express)
+twt4 <- rbind(twts_box, twts_logistics)
+twt5 <- rbind(twts_deliver,twts_late)
+twt6 <- rbind(twts_ups, twts_fedex)
+twt7 <- rbind(twts_DHL, twts_mail)
+twt8 <- rbind(twts_postage, twts_shipping)
+
+twt9 <- rbind(twt1, twt2)
+twt10 <- rbind(twt3, twt4)
+twt11 <- rbind(twt5, twt6)
+twt12 <- rbind(twt7, twt8)
+
+twt13 <- rbind(twt9, twt10)
+twt14 <- rbind(twt11, twt12)
+
+twt_phrases <-rbind(twt13,twt14)
+```
+
+```{r}
+write_as_csv(twt_phrases, "twt_phrases")
+```
+
+
+
+# ``````````````````````````````````````````````````````````````````````````````````````````````````
+
+
+```{r}
+# Extract source and target vertices from the tweet data frame
+rtwt_df <- UPS_hands[, c("screen_name" , "retweet_screen_name" )]
+
+# View the data frame
+head(rtwt_df)
+
+# Remove rows with missing values
+rtwt_df_new <- rtwt_df[complete.cases(rtwt_df), ]
+
+# Create a matrix
+rtwt_matrx <- as.matrix(rtwt_df_new)
+head(rtwt_matrx)
+```
+Create a retweet network
+The core step in network analysis is to create a network object like a retweet network as it helps analyze the inter-relationships between the nodes.
+
+Understanding the position of potential customers on a retweet network allows a brand to identify key players who are likely to retweet posts to spread brand messaging.
+
+Can you create a retweet network on #travel using the matrix saved in the previous exercise?
+
+The matrix rtwt_matrx and the library igraph have been pre-loaded for this exercise.
+```{r}
+library(igraph)
+# Convert the matrix to a retweet network
+nw_rtweet <- graph_from_edgelist(el = rtwt_matrx, directed = TRUE)
+
+# View the retweet network
+print.igraph(nw_rtweet)
+```
+# Calculate out-degree scores
+In a retweet network, the out-degree of a user indicates the number of times the user retweets posts.
+
+Users with high out-degree scores are key players who can be used as a medium to retweet promotional posts.
+
+Can you identify users who can be used as a medium to retweet promotional posts for a travel portal?
+
+The retweet network on #travel has been pre-loaded as nw_rtweet.
+
+The library igraph has been pre-loaded for this exercise.
+```{r}
+# Calculate out-degree scores from the retweet network
+out_degree <- degree(nw_rtweet, mode = c("out"))
+
+# Sort the out-degree scores in decreasing order
+out_degree_sort <- sort(out_degree, decreasing = TRUE)
+
+# View users with the top 10 out-degree scores
+out_degree_sort[1:10]
+```
+```{r}
+# Compute the in-degree scores from the retweet network
+in_degree <- degree(nw_rtweet, mode = c("in"))
+
+# Sort the in-degree scores in decreasing order
+in_degree_sort <- sort(in_degree, decreasing = TRUE)
+
+# View users with the top 10 in-degree scores
+in_degree_sort[1:10]
+```
+# Calculate the betweenness scores
+Betweenness centrality represents the degree to which nodes stand between each other.
+
+In a retweet network, a user with a high betweenness centrality score would have more control over the network because more information will pass through the user.
+
+Can you identify users who are central to people who retweet the most and those whose tweets are retweeted frequently?
+
+The retweet network on #travel has been pre-loaded as nw_rtweet.
+
+The library igraph has been pre-loaded for this exercise.
+```{r}
+# Calculate the betweenness scores from the retweet network
+betwn_nw <- betweenness(nw_rtweet, directed = TRUE)
+
+# Sort betweenness scores in decreasing order and round the values
+betwn_nw_sort <- betwn_nw %>%
+                    sort(decreasing = TRUE) %>%
+                    round()
+
+# View users with the top 10 betweenness scores 
+betwn_nw_sort[1:10]
+```
+# Create a network plot with attributes
+Visualization of twitter networks helps understand complex networks in an easier and appealing way.
+
+```{r}
+# Create a basic network plot
+plot.igraph(nw_rtweet)
+
+# Create a network plot with formatting attributes
+set.seed(1234)
+plot(nw_rtweet, asp = 9/12, 
+     vertex.size = 10,
+	   vertex.color = "green", 
+     edge.arrow.size = 0.5,
+     edge.color = "black",
+     vertex.label.cex = 0.9,
+     vertex.label.color = "black")
+```
+# Network plot based on centrality measure
+It will be more meaningful if the vertex size in the plot is proportional to the number of times the user retweets.
+
+In this exercise, you will add attributes such that the vertex size is indicative of the number of times the user retweets.
+
+The retweet network has been pre-loaded as nw_rtweet.
+
+The library igraph has been pre-loaded for this exercise.
+```{r}
+# Create a variable for out-degree
+deg_out <- degree(nw_rtweet, mode = c("out"))
+deg_out
+
+# Amplify the out-degree values
+vert_size <- (deg_out * 3) + 5
+
+# Set vertex size to amplified out-degree values
+set.seed(1234)
+plot(nw_rtweet, asp = 10/11, 
+     vertex.size = vert_size, vertex.color = "lightblue",
+     edge.arrow.size = 0.5,
+     edge.color = "grey",
+     vertex.label.cex = .7,
+     vertex.label.color = "black")
+
+```
+# Follower count to enhance the network plot
+The users who retweet most will add more value if they have a high follower count as their retweets will reach a wider audience.
+
+In a network plot, the combination of vertex size indicating the number of retweets by a user and vertex color indicating a high follower count provides clear insights on the most influential users who can promote a brand.
+
+In this exercise, you will create a plot showing the most influential users.
+
+The retweet network nw_rtweet, the dataset followers with the follower count, and vert_size created in the last exercise have all been pre-loaded.
+
+The library igraph has been pre-loaded for this exercise.
+```{r}
+# Create a column and categorize follower counts above and below 500
+followers$follow <- ifelse(followers$followers_count > 500, "1", "0")
+head(followers)
+
+# Assign the new column as vertex attribute to the retweet network
+V(nw_rtweet)$followers <- followers$follow
+vertex_attr(nw_rtweet)
+
+# Set the vertex colors based on follower count and create a plot
+sub_color <- c("lightgreen", "tomato")
+plot(nw_rtweet, asp = 9/12,
+     vertex.size = vert_size, edge.arrow.size = 0.5,
+     vertex.label.cex = 0.8,
+     vertex.color = sub_color[as.factor(vertex_attr(nw_rtweet, "followers"))],
+     vertex.label.color = "black", vertex.frame.color = "grey")
+```
+# Extract geolocation coordinates
+Analyzing the geolocation of tweets helps influence customers with targeted marketing.
+
+The first step in analyzing geolocation data using maps is to extract the available geolocation coordinates.
+
+Veganism is a widely promoted topic. It is the practice of abstaining from the use of animal products and its followers are known as "vegans".
+
+In this exercise, you will extract the geolocation coordinates from tweets on "#vegan".
+
+The library rtweet has been pre-loaded for this exercise.
+```{r}
+
+library(rjson)
+library(jsonlite)
+library(ggplot2)
+library(leaflet)
+library(gganimate)
+library(maps)
+library(lubridate)
+library(ggthemes)
+
+options(stringsAsFactors = F)
+```
+# Attempt to apply tweets to a map
+```{r}
+# create new df with just the tweet texts & usernames
+UPSgeo <- UPS_hands %>% data.frame(, date_time = created_at,
+                         username = screen_name,
+                         tweet_text = text,
+                         coords = coordinates)
+
+# Dates of interest October 22 - November 1 
+start_date <- as.POSIXct('2020-10-22 09:00:00')
+end_date <- as.POSIXct('2020-11-01 00:00:00')
+
+# cleanup & and filter to just the time period around the flood
+geo_tweets <- UPSgeo %>%
+  mutate(coords.coordinates = gsub("\\)|c\\(", "", coords.coordinates),
+         date_time = as.POSIXct(date_time, format = "%a %b %d %H:%M:%S +0000 %Y")) %>%
+  separate(coords.coordinates, c("long", "lat"), sep = ", ") %>%
+  mutate_at(c("lat", "long"), as.numeric) %>%
+  filter(date_time >= start_date & date_time <= end_date )
+```
+
+
+
+```{r}
+# Extract geo-coordinates data to append as new columns
+UPStweet_coord <- lat_lng(UPS_hands)
+
+# View the columns with geo-coordinates for first 20 tweets
+head(UPStweet_coord[c("lat","lng")], 20)
+```
+# Twitter data on the map
+It will be interesting to visualize tweets on "#vegan" on the map to see regions from where they are tweeted the most. A brand promoting vegan products can target people in these regions for their marketing.
+
+Remember not all tweets will have the geolocation data as this is an optional input for the users.
+
+The geolocation coordinates that you had extracted in the last exercise has been pre-loaded as vegan_coord.
+
+The library maps has also been pre-loaded for this exercise.
+```{r}
+# Omit rows with missing geo-coordinates in the data frame
+vegan_geo <- na.omit(vegan_coord[,c("lat", "lng")])
+
+# View the output
+head(vegan_geo)
+
+# Plot longitude and latitude values of tweets on the US state map
+map(database = "state", fill = TRUE, col = "light yellow")
+with(vegan_geo, points(lng, lat, pch = 20, cex = 1, col = 'blue'))
+
+# Plot longitude and latitude values of tweets on the world map
+map(database = "world", fill = TRUE, col = "light yellow")
+with(vegan_geo, points(lng, lat, pch = 20, cex = 1, col = 'blue')) 
+```
+

@@ -1,0 +1,361 @@
+---
+title: "UPS Twitter Trends"
+author: "Heather Rugnetta"
+date: "Marketing Fall 2020"
+output:
+  html_document:
+    df_print: paged
+    fig_height: 5
+    fig_width: 8.5
+    highlight: default
+    number_sections: yes
+    theme: journal
+    toc: yes
+    toc_depth: 2
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+    table: kable
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+```{r, echo=FALSE}
+library(rtweet)
+library(httpuv)
+library(readr)
+library(tidyverse)
+library(lubridate)
+library(tokenizers)
+library(tidytext)
+library(stringr)
+library(stringi)
+library(wordcloud)
+library(ggplot2)
+library(qdap)
+library(qdapRegex)
+```
+
+# Collect Twitter Data
+Started w/ "UPS" mentions and then added recent hashtags used by UPS, including '#BrownFriday' and '#WishesDelivered'. Added timeline feeds for DHL, USPS, and FedEx, as well as UPS and UPSers (a UPS employee/ fan club twitter feed).  Discovered "UPS" was being pulled as a mention when conspiracy-theorists tweeted "cover-ups" and were not necessarily discussing the company.
+Below is the collected data from 10/30-11/19 of 2020 as a .csv file.  
+
+```{r}
+# UPS
+get_ups <- read_twitter_csv("get_UPS.csv")
+ups_alts <- read_twitter_csv("ups_alts.csv")
+
+# DHL
+get_dhl <- read_twitter_csv("get_dhl.csv")
+dhl_alts <- read_twitter_csv("dhl_alts.csv")
+
+# FedEx
+get_fedex <- read_twitter_csv("get_fedex.csv")
+fedex_alts <- read_twitter_csv("fedex_alts.csv")
+
+# USPS
+get_usps <- read_twitter_csv("get_usps.csv")
+usps_alts <- read_twitter_csv("usps_alts.csv")
+
+# Phrases associated with sending packages
+twt_phrases <- read_twitter_csv("twt_phrases.csv")
+```
+
+Lets throw them all together and see who's tweeting.
+```{r}
+temp1 <-rbind(get_ups, ups_alts)
+temp2 <- rbind (get_dhl, dhl_alts)
+temp3 <- rbind(get_fedex, fedex_alts)
+temp4 <- rbind(get_usps, usps_alts)
+
+temp5 <- rbind(temp1, temp2)
+temp6 <- rbind(temp3, temp4)
+temp7 <- rbind(temp5, temp6)
+
+big_twt <- rbind(temp7, twt_phrases)
+```
+
+```{r}
+# Remove duplicate tweets
+ubig_twt <- unique(big_twt)
+head(ubig_twt)
+```
+
+```{r}
+# Create a table of users and tweet counts for the topic
+sc_name <- table(ubig_twt$screen_name)
+
+# Sort the table in descending order of tweet counts
+sc_name_sort <- sort(sc_name, decreasing = TRUE)
+
+# View sorted table for top 30 users
+head(sc_name_sort, 30)
+```
+
+```{r}
+# Create a table of users and tweet counts for the topic
+sc_name <- table(ubig_twt$screen_name)
+
+# Sort the table in descending order of tweet counts
+sc_name_sort <- sort(sc_name, decreasing = TRUE)
+
+# View sorted table for top 30 users
+head(sc_name_sort, 30)
+```
+
+# Exploring the Data
+```{r}
+# Plot frequency of tweets on 
+multiTweet <- ubig_twt %>%
+  group_by(screen_name) %>% 
+  mutate(counts= length(screen_name[screen_name]))
+multiTweet
+```
+```{r}
+multiTweetfiltered <- multiTweet %>% 
+  filter(counts >= 90)
+head(multiTweetfiltered)
+```
+
+
+```{r}
+ggplot(data = multiTweetfiltered, aes(screen_name))+
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  xlab("Screen Names of Users that Tweeted/Retweeted more than 90 Times On Logistics")
+  
+```
+
+
+
+## Examine the tweet text
+```{r}
+ups_text <- ubig_twt %>% select(c("text"))
+head(ups_text)
+```
+
+```{r}
+## extract every single word in the data
+ups_text_words <- ups_text %>% unnest_tokens(word, text)
+#
+## print the top 20 word frequencies
+head(ups_text_words %>% count(word, sort = TRUE),20)
+#
+## remove stop words, using `stop_words` from tidytext ... re-rank top 20 words
+ups_text_words2<-ups_text_words %>% anti_join(stop_words)
+head(ups_text_words2 %>% count(word, sort = TRUE),20)
+```
+
+```{r}
+# Extract tweet text from the pre-loaded dataset
+twt_txt <- ubig_twt$text
+
+# Replace special characters, punctuation, & numbers with spaces
+twt_txt_chrs  <- gsub("[^A-Za-z]"," " , twt_txt)
+
+```
+
+```{r}
+library(tm)
+
+# Convert text in "twt_gsub" dataset to a text corpus
+twt_corpus <- twt_txt_chrs %>% 
+                VectorSource() %>% 
+                Corpus() 
+
+# Convert the corpus to lowercase
+twt_corpus_lwr <- tm_map(twt_corpus, tolower) 
+
+head(twt_corpus_lwr$content)
+```
+
+```{r}
+# Remove English stop words from the corpus and view the corpus
+twt_corpus_stpwd <- tm_map(twt_corpus_lwr, removeWords, stopwords("english"))
+
+# Remove additional spaces from the corpus
+twt_corpus_final <- tm_map(twt_corpus_stpwd, stripWhitespace)
+
+```
+
+```{r}
+library(qdap)
+# Extract term frequencies for top 60 words and view output
+termfreq  <-  freq_terms(twt_corpus_final, 60)
+termfreq
+```
+
+```{r}
+# Create a vector of custom stop words
+custom_stopwds <- c("t", "u", 'f', "co", "https", "s", "can", "us", "d", "e", "will", "get", "dm", "got", "amp", "kmfvusgbfz", "m", "don", "number", "re", "fe", "r", "wkjhdxwgr", "ll", "c", "b", "please", "like", "now", "just", "free")
+	
+# Remove custom stop words and create a refined corpus
+corp_refined <- tm_map(twt_corpus_final, removeWords, custom_stopwds) 
+
+# Extract term frequencies for the top 20 words
+termfreq_clean <- freq_terms(corp_refined, 20)
+termfreq_clean
+```
+
+```{r}
+# Extract term frequencies for the top 25 words
+termfreq_25w <- freq_terms(corp_refined, 25)
+termfreq_25w
+
+# Identify terms with more than 500 counts from the top 25 list
+term50 <- subset(termfreq_25w, FREQ > 500)
+term50
+
+# Create a bar plot using terms with more than 50 counts
+ggplot(term50, aes(x = reorder(WORD, -FREQ), y = FREQ)) +
+		geom_bar(stat = "identity", fill = "blue") + 
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+## Word clouds for visualization
+
+```{r}
+# Create word cloud with 6 colors and max 50 words
+wordcloud(corp_refined, max.words = 50, 
+    colors = brewer.pal(6, "Dark2"), 
+    scale=c(5,1), random.order = FALSE)
+```
+
+# Sentiment scores
+```{r}
+ups_words <- ubig_twt %>% 
+  unnest_tokens(word, text) %>% 
+  select(status_id,word)
+
+ups_words <- ups_words %>% 
+  anti_join(stop_words)
+
+ups_words <- ups_words %>% 
+  left_join(sentiments, by=c("word"="word")) ## join w/ sentiments
+
+ups_words$positive <- 0
+ups_words$negative <- 0
+ups_words <- ups_words %>% 
+  mutate(positive = replace(positive, sentiment == "positive", 1)) %>% 
+  mutate(negative = replace(negative, sentiment=="negative", 1))
+
+ups_words <- ups_words %>%
+  group_by(status_id)%>%summarize(pos_words=sum(positive),neg_words=sum(negative))%>%
+  mutate(sentiment=pos_words-neg_words)
+
+head(ups_words)
+```
+```{r}
+twt_data_08 <- twt_data_08 %>% 
+  left_join(ups_words, by= c("status_id"="status_id"))
+head(twt_data_08)
+```
+
+
+## Perform sentiment analysis
+
+```{r}
+# Plot the sentiment scores
+ggplot(data = twt_data_08, aes(sentiment, fill = sentiment)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+# Retweet network
+```{r}
+# Extract source and target vertices from the tweet data frame
+rtwt_df <- ubig_twt[, c("screen_name" , "retweet_screen_name" )]
+
+# View the data frame
+head(rtwt_df)
+
+# Remove rows with missing values
+rtwt_df_new <- rtwt_df[complete.cases(rtwt_df), ]
+
+# Create a matrix
+rtwt_matrx <- as.matrix(rtwt_df_new)
+head(rtwt_matrx)
+```
+
+
+## Create a retweet network
+
+```{r}
+library(igraph)
+# Convert the matrix to a retweet network
+nw_rtweet <- graph_from_edgelist(el = rtwt_matrx, directed = TRUE)
+
+# View the retweet network
+print.igraph(nw_rtweet)
+```
+# Calculate out-degree scores
+
+```{r}
+# Calculate out-degree scores from the retweet network
+out_degree <- degree(nw_rtweet, mode = c("out"))
+
+# Sort the out-degree scores in decreasing order
+out_degree_sort <- sort(out_degree, decreasing = TRUE)
+
+# View users with the top 10 out-degree scores
+out_degree_sort[1:10]
+```
+```{r}
+# Compute the in-degree scores from the retweet network
+in_degree <- degree(nw_rtweet, mode = c("in"))
+
+# Sort the in-degree scores in decreasing order
+in_degree_sort <- sort(in_degree, decreasing = TRUE)
+
+# View users with the top 10 in-degree scores
+in_degree_sort[1:10]
+```
+## Calculate the betweenness scores
+```{r}
+# Calculate the betweenness scores from the retweet network
+betwn_nw <- betweenness(nw_rtweet, directed = TRUE)
+
+# Sort betweenness scores in decreasing order and round the values
+betwn_nw_sort <- betwn_nw %>%
+                    sort(decreasing = TRUE) %>%
+                    round()
+
+# View users with the top 10 betweenness scores 
+betwn_nw_sort[1:10]
+```
+## Create a network plot with attributes
+
+```{r}
+# Create a basic network plot
+plot.igraph(nw_rtweet)
+
+# Create a network plot with formatting attributes
+set.seed(1234)
+plot(nw_rtweet, asp = 9/12, 
+     vertex.size = 10,
+	   vertex.color = "green", 
+     edge.arrow.size = 0.5,
+     edge.color = "black",
+     vertex.label.cex = 0.9,
+     vertex.label.color = "black")
+```
+## Network plot based on centrality measure
+Need help
+```{r}
+# Create a variable for out-degree
+deg_out <- degree(nw_rtweet, mode = c("out"))
+deg_out
+
+# Amplify the out-degree values
+vert_size <- (deg_out * 3) + 5
+
+# Set vertex size to amplified out-degree values
+set.seed(1234)
+plot(nw_rtweet, asp = 10/11, 
+     vertex.size = vert_size, vertex.color = "lightblue",
+     edge.arrow.size = 0.5,
+     edge.color = "grey",
+     vertex.label.cex = 0.8,
+     vertex.label.color = "black")
+
+```
+
